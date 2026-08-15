@@ -1,0 +1,16 @@
+# Office lock/temp files
+.~lock.*
+~$*
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Python/cache output
+__pycache__/
+*.pyc
+
+# Local preview/export scratch
+*.tmp

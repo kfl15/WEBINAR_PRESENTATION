@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Developer-Side Memory Optimization for Reducing Token Cost</title>
+  <style>
+    :root {
+      --ink: #17202a;
+      --muted: #5f6d76;
+      --paper: #f7f5ee;
+      --panel: #ffffff;
+      --line: #d9d4c6;
+      --teal: #006d77;
+      --gold: #c27c24;
+      --red: #b6463a;
+      --green: #2f7d4f;
+      --blue: #355c9a;
+      --plum: #68416f;
+      --shadow: 0 16px 38px rgba(20, 32, 42, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 0.9em;
+    }
+
+    .deck {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+
+    .slide {
+      display: none;
+      width: 100vw;
+      height: 100vh;
+      padding: 52px 68px 62px;
+      background: linear-gradient(90deg, rgba(0, 109, 119, 0.08), transparent 42%), var(--paper);
+    }
+
+    .slide.active {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 22px;
+    }
+
+    .slide.hero {
+      background:
+        linear-gradient(120deg, rgba(0, 109, 119, 0.18), rgba(194, 124, 36, 0.10)),
+        var(--paper);
+    }
+
+    header,
+    footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    footer {
+      color: var(--muted);
+      font-size: 15px;
+      min-height: 26px;
+    }
+
+    .kicker {
+      color: var(--teal);
+      font-size: 17px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .counter {
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    h1, h2, h3, p {
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 1040px;
+      font-size: 62px;
+      line-height: 1.03;
+    }
+
+    h2 {
+      font-size: 42px;
+      line-height: 1.08;
+    }
+
+    h3 {
+      font-size: 23px;
+      line-height: 1.2;
+    }
+
+    p,
+    li {
+      font-size: 22px;
+      line-height: 1.42;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 1.15em;
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    .content {
+      display: grid;
+      align-content: center;
+      gap: 24px;
+      min-height: 0;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .three-col {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 22px;
+      box-shadow: var(--shadow);
+    }
+
+    .stripe {
+      border-left: 8px solid var(--teal);
+    }
+
+    .stripe.gold {
+      border-left-color: var(--gold);
+    }
+
+    .stripe.green {
+      border-left-color: var(--green);
+    }
+
+    .stripe.blue {
+      border-left-color: var(--blue);
+    }
+
+    .stripe.red {
+      border-left-color: var(--red);
+    }
+
+    .stripe.plum {
+      border-left-color: var(--plum);
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .big {
+      font-size: 30px;
+      line-height: 1.25;
+    }
+
+    .small {
+      font-size: 17px;
+      line-height: 1.42;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 6px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--ink);
+      font-size: 17px;
+      font-weight: 850;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .step {
+      min-height: 138px;
+      background: var(--panel);
+      border-top: 8px solid var(--teal);
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .step:nth-child(2) {
+      border-top-color: var(--gold);
+    }
+
+    .step:nth-child(3) {
+      border-top-color: var(--green);
+    }
+
+    .step:nth-child(4) {
+      border-top-color: var(--blue);
+    }
+
+    .matrix {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .matrix th,
+    .matrix td {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 17px;
+      line-height: 1.34;
+    }
+
+    .matrix th {
+      background: #ebe6d9;
+      font-size: 15px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .matrix tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .before-after {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .before {
+      border-top: 8px solid var(--red);
+    }
+
+    .after {
+      border-top: 8px solid var(--green);
+    }
+
+    .formula {
+      display: inline-block;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px 20px;
+      font-size: 28px;
+      font-weight: 900;
+      box-shadow: var(--shadow);
+    }
+
+    .codebox {
+      background: #17202a;
+      color: #f7f5ee;
+      border-radius: 8px;
+      padding: 18px 20px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 17px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      overflow: hidden;
+    }
+
+    .notes {
+      display: none;
+      position: fixed;
+      left: 24px;
+      right: 24px;
+      bottom: 24px;
+      padding: 18px 22px;
+      background: rgba(23, 32, 42, 0.94);
+      color: white;
+      border-radius: 8px;
+      font-size: 18px;
+      line-height: 1.45;
+      z-index: 10;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.26);
+    }
+
+    .show-notes .slide.active .notes {
+      display: block;
+    }
+
+    .controls {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      display: flex;
+      gap: 8px;
+      z-index: 20;
+    }
+
+    button {
+      width: 44px;
+      height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: white;
+      color: var(--ink);
+      font-size: 22px;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+    }
+
+    button:hover {
+      border-color: var(--teal);
+    }
+
+    @media (max-width: 900px) {
+      body {
+        overflow: auto;
+      }
+
+      .deck,
+      .slide {
+        min-height: 100vh;
+        height: auto;
+      }
+
+      .slide {
+        padding: 30px 18px 88px;
+      }
+
+      h1 {
+        font-size: 40px;
+      }
+
+      h2 {
+        font-size: 31px;
+      }
+
+      p,
+      li {
+        font-size: 18px;
+      }
+
+      .two-col,
+      .three-col,
+      .flow,
+      .before-after {
+        grid-template-columns: 1fr;
+      }
+
+      .matrix th,
+      .matrix td {
+        font-size: 14px;
+        padding: 9px;
+      }
+
+      .notes {
+        left: 10px;
+        right: 10px;
+        bottom: 78px;
+        max-height: 38vh;
+        overflow: auto;
+      }
+    }
+
+    @media print {
+      body {
+        overflow: visible;
+      }
+
+      .slide {
+        display: grid !important;
+        height: 100vh;
+        break-after: page;
+      }
+
+      .controls,
+      .notes {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck" id="deck">
+    <section class="slide hero active">
+      <header><div class="kicker">Developer Webinar</div><div class="counter"></div></header>
+      <div class="content">
+        <h1>Developer-Side Memory Optimization for Reducing Token Cost</h1>
+        <p class="big muted">For API-based chatbots, websites, support systems, and internal tools.</p>
+        <div class="tag-row">
+          <span class="tag">Prune</span><span class="tag">Summarize</span><span class="tag">Retrieve</span>
+          <span class="tag">Cache answers</span><span class="tag">Control output</span><span class="tag">Batch</span><span class="tag">Route</span>
+        </div>
+      </div>
+      <footer>30-40 minutes | Press N for speaker notes <span>Prepared for August 15, 2026</span></footer>
+      <aside class="notes">Opening: "This talk is from a developer perspective. We are building an app using an LLM API, and our job is to decide what memory reaches the model."</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">Frame</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>This talk is about what our app controls.</h2>
+        <div class="two-col">
+          <div class="card stripe green">
+            <h3>Developer-side decisions</h3>
+            <ul><li>What history to send</li><li>Which document chunks to send</li><li>When to call the LLM</li><li>How long the output should be</li><li>Which model should handle the task</li></ul>
+          </div>
+          <div class="card stripe red">
+            <h3>Not the main focus</h3>
+            <ul><li>Provider internal caching</li><li>Provider infrastructure tricks</li><li>Exact pricing tables</li><li>Hidden model implementation</li></ul>
+          </div>
+        </div>
+      </div>
+      <footer>Main correction: we optimize our API system, not the provider's backend.</footer>
+      <aside class="notes">Say clearly: "OpenAI, Claude, and DeepSeek are APIs we may call. The topic is how our application reduces unnecessary calls and unnecessary tokens."</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">Problem</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>Token cost grows when a chatbot keeps sending everything.</h2>
+        <div class="three-col">
+          <div class="card stripe"><h3>Input grows</h3><p>System prompt, chat history, documents, tools, and retrieved data enter every request.</p></div>
+          <div class="card stripe gold"><h3>Output grows</h3><p>Long answers, explanations, and verbose JSON increase generated tokens.</p></div>
+          <div class="card stripe blue"><h3>Calls grow</h3><p>Repeated FAQs and offline jobs can trigger unnecessary API calls.</p></div>
+        </div>
+        <p class="formula">Cost opportunity = fewer input tokens + fewer output tokens + fewer API calls</p>
+      </div>
+      <footer>Memory is useful, but memory is not free.</footer>
+      <aside class="notes">Use the support bot story: "One small refund question should not require the full PDF, full chat, all tools, and a long essay."</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">Basics</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>Token cost basics</h2>
+        <div class="two-col">
+          <div class="card"><h3>Input tokens</h3><p>Everything sent to the model: instructions, user message, history, documents, tools, examples, and formatting rules.</p></div>
+          <div class="card"><h3>Output tokens</h3><p>Everything generated by the model. Short useful answers reduce cost and latency.</p></div>
+          <div class="card"><h3>Context window</h3><p>The maximum information a model can consider in one request.</p></div>
+          <div class="card"><h3>API call</h3><p>Every model request can cost money. Avoiding a call can be better than shrinking a prompt.</p></div>
+        </div>
+      </div>
+      <footer>Optimization controls what goes in, what comes out, and whether the call is needed.</footer>
+      <aside class="notes">Transition: "Now we need a memory model for developer-built apps."</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">Mental Model</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>Put memory in the cheapest useful place.</h2>
+        <div class="flow">
+          <div class="step"><h3>Prompt</h3><p class="small">Only what the model needs right now.</p></div>
+          <div class="step"><h3>Summary</h3><p class="small">Compressed old conversation.</p></div>
+          <div class="step"><h3>Documents</h3><p class="small">Stored outside the prompt and retrieved when needed.</p></div>
+          <div class="step"><h3>Answer cache</h3><p class="small">Saved answers for repeated questions.</p></div>
+        </div>
+        <p class="big">The app decides what to remove, compress, retrieve, cache, limit, batch, or route.</p>
+      </div>
+      <footer>The model does not know what is important unless our app chooses.</footer>
+      <aside class="notes">Say: "Do not put every memory directly into the prompt by default."</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">Technique 1</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>Prompt pruning: remove unnecessary prompt text.</h2>
+        <div class="before-after">
+          <div class="card before"><h3>Before</h3><p>Be helpful. Be friendly. Be concise. Do not be too long. Use simple language. Give bullet points if possible.</p></div>
+          <div class="card after"><h3>After</h3><p>Answer in simple language using 3 concise bullet points.</p></div>
+        </div>
+        <table class="matrix"><tr><th>Manual</th><th>Automatic</th><th>Risk</th></tr><tr><td>Remove repeated rules, unused examples, and vague wording.</td><td>Trim old messages by token limit, last N messages, or relevance.</td><td>Removing important context can hurt answer quality.</td></tr></table>
+      </div>
+      <footer>Names to mention: OpenAI, Claude, DeepSeek, LangChain.</footer>
+      <aside class="notes">Key line: "First remove noise before adding complex architecture."</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">Technique 2</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>Conversation summary: compress old chat history.</h2>
+        <div class="before-after">
+          <div class="card before"><h3>Before</h3><p>Send all 40 previous messages every time the user asks a new question.</p></div>
+          <div class="card after"><h3>After</h3><p>Send a short summary, important facts, and only the last 4-6 turns.</p></div>
+        </div>
+        <div class="codebox">Summary:
+User wants refund for order #123.
+Reset email did not arrive.
+User prefers short step-by-step instructions.</div>
+      </div>
+      <footer>Names to mention: LangChain, OpenAI, Claude, DeepSeek.</footer>
+      <aside class="notes">Warn: "Summary is compressed memory, not perfect memory. Important facts may need separate structured storage."</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">Technique 3</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>Retrieval/RAG: send relevant document chunks, not the whole library.</h2>
+        <div class="flow">
+          <div class="step"><h3>Store</h3><p class="small">PDF, docs, FAQ, policy files.</p></div>
+          <div class="step"><h3>Search</h3><p class="small">Find chunks matching the question.</p></div>
+          <div class="step"><h3>Send</h3><p class="small">Only top relevant chunks enter the prompt.</p></div>
+          <div class="step"><h3>Answer</h3><p class="small">LLM writes using focused context.</p></div>
+        </div>
+        <p class="big">RAG still uses the LLM. It saves input tokens by making the LLM read only the useful part.</p>
+      </div>
+      <footer>Names to mention: Pinecone, Weaviate, Microsoft Azure AI Search, OpenAI vector stores.</footer>
+      <aside class="notes">Use the line: "RAG does not make the LLM free. It makes the LLM read only the useful part instead of the whole library."</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">RAG Clarification</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>File upload vs custom RAG</h2>
+        <div class="two-col">
+          <div class="card stripe gold"><h3>Traditional upload</h3><p>A platform may handle document reading internally. Developers usually do not control chunk size, ranking, or exact context.</p></div>
+          <div class="card stripe green"><h3>Custom RAG chatbot</h3><p>Your app stores docs, searches them, selects chunks, and sends only relevant context to the LLM API.</p></div>
+        </div>
+        <div class="codebox">Without RAG: full_document_tokens + question_tokens + answer_tokens
+With RAG: search_cost + relevant_chunk_tokens + question_tokens + answer_tokens</div>
+      </div>
+      <footer>RAG saves tokens only if retrieval finds the right chunks.</footer>
+      <aside class="notes">This slide answers the common student confusion: the LLM still costs money, but the prompt becomes much smaller.</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">Technique 4</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>Response caching: skip the LLM when an answer already exists.</h2>
+        <div class="before-after">
+          <div class="card before"><h3>Without cache</h3><p>Same FAQ question -> call LLM -> pay input tokens + output tokens every time.</p></div>
+          <div class="card after"><h3>With cache</h3><p>Same or similar FAQ question -> return saved answer -> no LLM token cost.</p></div>
+        </div>
+        <p class="big">Best for stable, repeatable questions: refund policy, pricing, password reset, admission rules.</p>
+      </div>
+      <footer>Names to mention: Redis, Cloudflare AI Gateway, LangChain, vector databases.</footer>
+      <aside class="notes">Say: "This is application-level caching. Our app stores and returns answers when it is safe to do so."</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">Caching Types</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>Three practical cache types</h2>
+        <div class="three-col">
+          <div class="card stripe"><h3>Exact cache</h3><p>Same question text returns the same stored answer.</p></div>
+          <div class="card stripe green"><h3>FAQ cache</h3><p>Approved answers for common support questions.</p></div>
+          <div class="card stripe plum"><h3>Semantic cache</h3><p>Similar meaning returns a stored answer if similarity is high enough.</p></div>
+        </div>
+        <div class="codebox">if similarity(user_question, cached_question) > 0.90:
+  return cached_answer
+else:
+  call_llm()</div>
+      </div>
+      <footer>Warning: avoid blind caching for private, sensitive, or fast-changing answers.</footer>
+      <aside class="notes">Mention cache invalidation: "If the refund policy changes, cached refund answers must expire or update."</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">Technique 5</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>Output control: ask for the shortest useful answer.</h2>
+        <div class="two-col">
+          <div class="card before"><h3>Loose request</h3><p>"Explain everything about password reset."</p></div>
+          <div class="card after"><h3>Controlled request</h3><p>"Answer in 4 bullets: cause, next step, warning, contact option."</p></div>
+        </div>
+        <table class="matrix"><tr><th>Developer controls</th><th>Use cases</th><th>Risk</th></tr><tr><td><code>max_output_tokens</code>, bullets, JSON, templates, quick/detailed modes.</td><td>Support replies, classifiers, summaries, internal automation.</td><td>Too-low limits can cut off important detail.</td></tr></table>
+      </div>
+      <footer>Names to mention: OpenAI, Claude, DeepSeek, support automation systems.</footer>
+      <aside class="notes">Key line: "The target is not the shortest answer. The target is the shortest useful answer."</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">Technique 6</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>Batch processing: move non-urgent work to the background.</h2>
+        <div class="before-after">
+          <div class="card before"><h3>Bad fit</h3><p>User waits while every ticket, summary, or report is processed immediately.</p></div>
+          <div class="card after"><h3>Better fit</h3><p>Collect, deduplicate, schedule, and process non-urgent LLM jobs later.</p></div>
+        </div>
+        <ul><li>Good for ticket classification, evaluations, summaries, embeddings, reports.</li><li>Not good for live chat answers where the user is waiting.</li></ul>
+      </div>
+      <footer>Names to mention: OpenAI Batch API, Claude Message Batches, cron jobs, background queues.</footer>
+      <aside class="notes">Say: "Batching is useful when the work can finish later."</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">Technique 6</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>Model routing: do not use the strongest model for every task.</h2>
+        <div class="flow">
+          <div class="step"><h3>No model</h3><p class="small">Greeting, cached FAQ, fixed template.</p></div>
+          <div class="step"><h3>Cheap model</h3><p class="small">Classification, short summary, simple rewrite.</p></div>
+          <div class="step"><h3>RAG + model</h3><p class="small">Document-specific answers.</p></div>
+          <div class="step"><h3>Strong model</h3><p class="small">Complex, risky, multi-step reasoning.</p></div>
+        </div>
+        <p class="big">Route by difficulty and risk, not only by cost.</p>
+      </div>
+      <footer>Names to mention: LiteLLM, LangChain, OpenAI, Claude, DeepSeek.</footer>
+      <aside class="notes">Example: "Hi" needs no LLM. A legal comparison may need a stronger model or human review.</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">Case Study</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>Support chatbot before and after</h2>
+        <div class="before-after">
+          <div class="card before">
+            <h3>Before</h3>
+            <ul><li>Strong LLM for every request</li><li>Full policy PDF sent every time</li><li>Full chat history sent every time</li><li>Long free-form answers</li><li>Repeated FAQs call the LLM again</li></ul>
+          </div>
+          <div class="card after">
+            <h3>After</h3>
+            <ul><li>Pruned prompt</li><li>Summary plus recent turns</li><li>RAG for policy chunks</li><li>Cached FAQ answers</li><li>Short structured replies</li><li>Batch jobs and model routing</li></ul>
+          </div>
+        </div>
+      </div>
+      <footer>The user still gets support, but the app sends less memory and avoids some calls.</footer>
+      <aside class="notes">Walk through the sequence as a developer architecture change, not just prompt writing.</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">Advanced Names</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>Advanced techniques and tools to remember</h2>
+        <table class="matrix">
+          <tr><th>Technique</th><th>Names to mention</th></tr>
+          <tr><td>RAG with vector databases</td><td>Pinecone, Weaviate, Microsoft Azure AI Search</td></tr>
+          <tr><td>Semantic caching</td><td>Redis, Cloudflare AI Gateway, LangChain</td></tr>
+          <tr><td>LLM routing and fallback</td><td>LiteLLM, LangChain</td></tr>
+          <tr><td>Batch processing</td><td>OpenAI Batch API, Claude Message Batches</td></tr>
+          <tr><td>Support automation patterns</td><td>Zendesk, Intercom</td></tr>
+        </table>
+      </div>
+      <footer>Mention these as examples of real developer tools, not mandatory choices.</footer>
+      <aside class="notes">Say: "You do not need all these tools tomorrow. The important thing is to understand the patterns."</aside>
+    </section>
+
+    <section class="slide">
+      <header><div class="kicker">Conclusion</div><div class="counter"></div></header>
+      <div class="content">
+        <h2>Before calling the LLM API, ask:</h2>
+        <div class="tag-row">
+          <span class="tag">Can I remove it?</span><span class="tag">Can I summarize it?</span><span class="tag">Can I retrieve only part?</span>
+          <span class="tag">Can I return cached answer?</span><span class="tag">Can I limit output?</span><span class="tag">Can I batch it?</span><span class="tag">Can I route it?</span>
+        </div>
+        <p class="big">Memory optimization is application design: keep the right information in the cheapest useful place.</p>
+      </div>
+      <footer>End with the framework, then Q&A.</footer>
+      <aside class="notes">Closing line: "Our goal is not tiny prompts. Our goal is enough context, fewer unnecessary tokens, and fewer unnecessary API calls."</aside>
+    </section>
+  </main>
+
+  <nav class="controls" aria-label="Slide controls">
+    <button type="button" id="prev" aria-label="Previous slide" title="Previous slide">&lt;</button>
+    <button type="button" id="next" aria-label="Next slide" title="Next slide">&gt;</button>
+  </nav>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const deck = document.getElementById("deck");
+    const counters = Array.from(document.querySelectorAll(".counter"));
+    let current = 0;
+
+    counters.forEach((counter, index) => {
+      counter.textContent = `${index + 1} / ${slides.length}`;
+    });
+
+    function showSlide(index) {
+      current = Math.max(0, Math.min(index, slides.length - 1));
+      slides.forEach((slide, i) => slide.classList.toggle("active", i === current));
+      window.location.hash = `slide-${current + 1}`;
+    }
+
+    function fromHash() {
+      const match = window.location.hash.match(/slide-(\d+)/);
+      if (match) {
+        showSlide(Number(match[1]) - 1);
+      }
+    }
+
+    document.getElementById("prev").addEventListener("click", () => showSlide(current - 1));
+    document.getElementById("next").addEventListener("click", () => showSlide(current + 1));
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
+        event.preventDefault();
+        showSlide(current + 1);
+      }
+      if (event.key === "ArrowLeft" || event.key === "PageUp") {
+        event.preventDefault();
+        showSlide(current - 1);
+      }
+      if (event.key.toLowerCase() === "n") {
+        deck.classList.toggle("show-notes");
+      }
+      if (event.key === "Home") {
+        showSlide(0);
+      }
+      if (event.key === "End") {
+        showSlide(slides.length - 1);
+      }
+    });
+    window.addEventListener("hashchange", fromHash);
+    fromHash();
+  </script>
+</body>
+</html>
